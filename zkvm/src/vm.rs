@@ -293,7 +293,11 @@ where
     fn neg(&mut self) -> Result<(), VMError> {
         let expr = self.pop_item()?.to_expression()?;
         let neg_expr = Expression {
-            terms: expr.terms.map(|t| (t.0, t.1.neg())),
+            terms: expr
+                .terms
+                .iter()
+                .map(|t| (t.0, t.1.neg()))
+                .collect::<Vec<_>>(),
             assignment: expr.assignment,
         };
         self.push_item(neg_expr);
