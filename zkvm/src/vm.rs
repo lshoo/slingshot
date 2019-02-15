@@ -205,7 +205,7 @@ where
                 Instruction::Mintime => self.mintime()?,
                 Instruction::Maxtime => self.maxtime()?,
                 Instruction::Expr => self.expr()?,
-                Instruction::Neg => unimplemented!(),
+                Instruction::Neg => self.neg()?,
                 Instruction::Add => unimplemented!(),
                 Instruction::Mul => unimplemented!(),
                 Instruction::Eq => unimplemented!(),
@@ -287,6 +287,16 @@ where
         let var = self.pop_item()?.to_variable()?;
         let expr = self.variable_to_expression(var)?;
         self.push_item(expr);
+        Ok(())
+    }
+
+    fn neg(&mut self) -> Result<(), VMError> {
+        let expr = self.pop_item()?.to_expression()?;
+        let neg_expr = Expression {
+            terms: expr.terms.map(|t| (t.0, t.1.neg())),
+            assignment: expr.assignment,
+        };
+        self.push_item(neg_expr);
         Ok(())
     }
 
