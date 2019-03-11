@@ -37,7 +37,6 @@ impl MultiKey {
         let mut X = RistrettoPoint::default();
         for X_i in &self.0 {
             let a_i = H_agg(&L, &X_i);
-            X = X + a_i * X_i.0;
         }
 
         (PubKey(X), L)
@@ -58,8 +57,7 @@ impl Signature {
         let c = H_sig(&X_agg, &self.R, &m);
 
         // INTERVIEW PART 4: perform verification check
-        self.s * RISTRETTO_BASEPOINT_POINT == self.R.0 + c * X_agg.0
-        // false
+        false
     }
 }
 

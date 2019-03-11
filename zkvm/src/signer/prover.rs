@@ -41,11 +41,9 @@ impl<'a> PartyAwaitingPrecommitments {
         let r_i = Nonce(Scalar::random(&mut rand::thread_rng()));
 
         // INTERVIEW PART 2: make R_i and H(R_i) correctly.
-        // Also, comment the code as you see fit for readability.
-        let R_i = NonceCommitment(RISTRETTO_BASEPOINT_POINT * r_i.0);
-        // let R_i = NonceCommitment(RistrettoPoint::default());
-
-        let precommitment = NoncePrecommitment(H_nonce(&R_i));
+        let R_i = NonceCommitment(RistrettoPoint::default());
+        let precommitment =
+            NoncePrecommitment(H_nonce(&NonceCommitment(RistrettoPoint::default())));
 
         (
             PartyAwaitingPrecommitments {
@@ -107,8 +105,7 @@ impl<'a> PartyAwaitingCommitments {
         let a_i = H_agg(&self.L, &X_i);
 
         // INTERVIEW PART 3: Generate siglet correctly.
-        // let s_i = Scalar::zero();
-        let s_i = self.r_i.0 + c * a_i * self.x_i.0;
+        let s_i = Scalar::zero();
 
         // Store received nonce commitments in next state
         (
@@ -139,23 +136,6 @@ impl<'a> PartyAwaitingSiglets {
         pubkeys: Vec<PubKey>,
     ) -> Signature {
         // INTERVIEW EXTRA PART: Check that all siglets are valid
-        // Check that all siglets are valid
-        for (i, s_i) in siglets.iter().enumerate() {
-            let S_i = s_i.0 * RISTRETTO_BASEPOINT_POINT;
-            let X_i = PubKey(pubkeys[i].0);
-            let R_i = self.nonce_commitments[i].0;
-            let R = NonceCommitment(self.nonce_commitments.iter().map(|R_i| R_i.0).sum());
-
-            // Make c = H(X_agg, R, m)
-            let c = H_sig(&self.X_agg, &R, &self.m);
-
-            // Make a_i = H(L, X_i)
-            let a_i = H_agg(&self.L, &X_i);
-
-            // Check that S_i = R_i + c * a_i * X_i
-            assert_eq!(S_i, R_i + c * a_i * X_i.0);
-        }
-
         self.receive_siglets(siglets)
     }
 }
