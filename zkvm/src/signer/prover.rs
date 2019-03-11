@@ -1,7 +1,6 @@
 #![allow(non_snake_case)]
 
 use crate::signer::*;
-use crate::transcript::TranscriptProtocol;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use rand;
@@ -38,22 +37,14 @@ pub struct PartyAwaitingSiglets {
 
 impl<'a> PartyAwaitingPrecommitments {
     pub fn new(x_i: PrivKey, shared: Shared) -> (Self, NoncePrecommitment) {
-        let mut rng = shared
-            .transcript
-            .build_rng()
-            .finalize(&mut rand::thread_rng());
-
-        let r_i = Nonce(Scalar::random(&mut rng));
+        let r_i = Nonce(Scalar::random(&mut rand::thread_rng()));
 
         // INTERVIEW PART 2: make R_i and H(R_i) correctly.
         // Also, comment the code as you see fit for readability.
         let R_i = NonceCommitment(shared.G * r_i.0);
         // let R_i = NonceCommitment(RistrettoPoint::default());
 
-        let mut hash_transcript = shared.transcript.clone();
-        hash_transcript.commit_point(b"R_i", &R_i.0.compress());
-        let precommitment =
-            NoncePrecommitment(hash_transcript.challenge_scalar(b"nonce.precommit"));
+        let precommitment = NoncePrecommitment(H_nonce(R_i.0));
 
         (
             PartyAwaitingPrecommitments {
@@ -95,9 +86,7 @@ impl<'a> PartyAwaitingCommitments {
             .zip(nonce_commitments.iter())
         {
             // Make H(comm) = H(R_i)
-            let mut precomm_transcript = self.shared.transcript.clone();
-            precomm_transcript.commit_point(b"R_i", &comm.0.compress());
-            let correct_precomm = precomm_transcript.challenge_scalar(b"nonce.precommit");
+            let correct_precomm = H_nonce(comm.0);
 
             // Compare H(comm) with pre_comm, they should be equal
             assert_eq!(pre_comm.0, correct_precomm);

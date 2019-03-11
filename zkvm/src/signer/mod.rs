@@ -37,14 +37,8 @@ pub struct Shared {
 }
 
 impl MultiKey {
-    pub fn aggregate(&self, transcript: &mut Transcript) -> (PubKey, PubKeyHash) {
-        let L = {
-            let mut L_transcript = transcript.clone();
-            for X_i in &self.0 {
-                L_transcript.commit_point(b"X_i.L", &X_i.0.compress());
-            }
-            L_transcript.challenge_scalar(b"L")
-        };
+    pub fn aggregate(&self) -> (PubKey, PubKeyHash) {
+        let L = self.L();
 
         // INTERVIEW PART 1: create Pubkey(X) correctly.
         let mut X = RistrettoPoint::default();
@@ -54,6 +48,14 @@ impl MultiKey {
         }
 
         (PubKey(X), PubKeyHash(L))
+    }
+
+    fn L(&self) -> Scalar {
+        let mut transcript = Transcript::new(b"key aggregation");
+        for X_i in &self.0 {
+            transcript.commit_point(b"X_i.L", &X_i.0.compress());
+        }
+        transcript.challenge_scalar(b"L")
     }
 }
 
@@ -81,6 +83,12 @@ pub fn H_sig(X_agg: RistrettoPoint, R: RistrettoPoint, m: Vec<u8>) -> Scalar {
     transcript.commit_point(b"R", &R.compress());
     transcript.commit_bytes(b"m", &m);
     transcript.challenge_scalar(b"c")
+}
+
+pub fn H_nonce(R: RistrettoPoint) -> Scalar {
+    let mut transcript = Transcript::new(b"nonce precommitment");
+    transcript.commit_point(b"R_i", &R.compress());
+    transcript.challenge_scalar(b"nonce.precommit")
 }
 
 #[cfg(test)]
@@ -122,8 +130,7 @@ mod tests {
                 .map(|priv_key| PubKey(G * priv_key.0))
                 .collect(),
         );
-        let mut transcript = Transcript::new(b"sign msg test");
-        multi_key.aggregate(&mut transcript)
+        multi_key.aggregate()
     }
 
     #[test]
