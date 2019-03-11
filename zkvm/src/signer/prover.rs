@@ -47,10 +47,11 @@ impl<'a> PartyAwaitingPrecommitments {
 
         // INTERVIEW PART 2: make R_i and H(R_i) correctly.
         // Also, comment the code as you see fit for readability.
-        let R_i = NonceCommitment(RistrettoPoint::default());
+        let R_i = NonceCommitment(shared.G * r_i.0);
+        // let R_i = NonceCommitment(RistrettoPoint::default());
 
         let mut hash_transcript = shared.transcript.clone();
-        hash_transcript.commit_point(b"R_i", &RistrettoPoint::default().compress());
+        hash_transcript.commit_point(b"R_i", &R_i.0.compress());
         let precommitment =
             NoncePrecommitment(hash_transcript.challenge_scalar(b"nonce.precommit"));
 
@@ -106,25 +107,14 @@ impl<'a> PartyAwaitingCommitments {
         let R: RistrettoPoint = nonce_commitments.iter().map(|R_i| R_i.0).sum();
 
         // Make c = H(X_agg, R, m)
-        let c = {
-            let mut hash_transcript = self.shared.transcript.clone();
-            hash_transcript.commit_point(b"X_agg", &self.shared.X_agg.0.compress());
-            hash_transcript.commit_point(b"R", &R.compress());
-            hash_transcript.commit_bytes(b"m", &self.shared.m);
-            hash_transcript.challenge_scalar(b"c")
-        };
+        let c = H_sig(self.shared.X_agg.0, R, self.shared.m.clone());
 
         // Make a_i = H(L, X_i)
-        let a_i = {
-            let mut hash_transcript = self.shared.transcript.clone();
-            hash_transcript.commit_scalar(b"L", &self.shared.L.0);
-            let X_i = self.x_i.0 * self.shared.G;
-            hash_transcript.commit_point(b"X_i", &X_i.compress());
-            hash_transcript.challenge_scalar(b"a_i")
-        };
+        let a_i = H_agg(self.shared.L.0, self.x_i.0 * self.shared.G);
 
         // INTERVIEW PART 3: Generate siglet correctly.
-        let s_i = Scalar::zero();
+        // let s_i = Scalar::zero();
+        let s_i = self.r_i.0 + c * a_i * self.x_i.0;
 
         // Store received nonce commitments in next state
         (

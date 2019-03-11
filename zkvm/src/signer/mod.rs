@@ -47,15 +47,10 @@ impl MultiKey {
         };
 
         // INTERVIEW PART 1: create Pubkey(X) correctly.
-        // Also, comment the code as you see fit for readability.
         let mut X = RistrettoPoint::default();
         for X_i in &self.0 {
-            let a_i = {
-                let mut a_i_transcript = transcript.clone();
-                a_i_transcript.commit_scalar(b"L", &L);
-                a_i_transcript.commit_point(b"X_i", &X_i.0.compress());
-                a_i_transcript.challenge_scalar(b"a_i")
-            };
+            let a_i = H_agg(L, X_i.0);
+            X = X + a_i * X_i.0;
         }
 
         (PubKey(X), PubKeyHash(L))
@@ -65,17 +60,27 @@ impl MultiKey {
 impl Signature {
     pub fn verify(&self, shared: Shared) -> bool {
         // Make c = H(X_agg, R, m)
-        let c = {
-            let mut hash_transcript = shared.transcript.clone();
-            hash_transcript.commit_point(b"X_agg", &shared.X_agg.0.compress());
-            hash_transcript.commit_point(b"R", &self.R.compress());
-            hash_transcript.commit_bytes(b"m", &shared.m);
-            hash_transcript.challenge_scalar(b"c")
-        };
+        let c = H_sig(shared.X_agg.0, self.R, shared.m);
 
         // INTERVIEW PART 4: perform verification check
-        false
+        self.s * shared.G == self.R + c * shared.X_agg.0
+        // false
     }
+}
+
+pub fn H_agg(L_hash: Scalar, X_i: RistrettoPoint) -> Scalar {
+    let mut transcript = Transcript::new(b"H_agg");
+    transcript.commit_scalar(b"L", &L_hash);
+    transcript.commit_point(b"X_i", &X_i.compress());
+    transcript.challenge_scalar(b"a_i")
+}
+
+pub fn H_sig(X_agg: RistrettoPoint, R: RistrettoPoint, m: Vec<u8>) -> Scalar {
+    let mut transcript = Transcript::new(b"H_sig");
+    transcript.commit_point(b"X_agg", &X_agg.compress());
+    transcript.commit_point(b"R", &R.compress());
+    transcript.commit_bytes(b"m", &m);
+    transcript.challenge_scalar(b"c")
 }
 
 #[cfg(test)]
