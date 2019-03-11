@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+use crate::signer::prover::NonceCommitment;
 use crate::transcript::TranscriptProtocol;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek::ristretto::RistrettoPoint;
@@ -25,13 +26,7 @@ pub struct PubKeyHash(Scalar);
 #[derive(Debug, Clone)]
 pub struct Signature {
     s: Scalar,
-    R: RistrettoPoint,
-}
-
-#[derive(Clone)]
-pub struct Shared {
-    X_agg: PubKey,
-    L: PubKeyHash,
+    R: NonceCommitment,
 }
 
 impl MultiKey {
@@ -41,51 +36,51 @@ impl MultiKey {
         // INTERVIEW PART 1: create Pubkey(X) correctly.
         let mut X = RistrettoPoint::default();
         for X_i in &self.0 {
-            let a_i = H_agg(L, X_i.0);
+            let a_i = H_agg(&L, &X_i);
             X = X + a_i * X_i.0;
         }
 
-        (PubKey(X), PubKeyHash(L))
+        (PubKey(X), L)
     }
 
-    fn L(&self) -> Scalar {
+    fn L(&self) -> PubKeyHash {
         let mut transcript = Transcript::new(b"key aggregation");
         for X_i in &self.0 {
             transcript.commit_point(b"X_i.L", &X_i.0.compress());
         }
-        transcript.challenge_scalar(b"L")
+        PubKeyHash(transcript.challenge_scalar(b"L"))
     }
 }
 
 impl Signature {
     pub fn verify(&self, m: Vec<u8>, X_agg: PubKey) -> bool {
         // Make c = H(X_agg, R, m)
-        let c = H_sig(X_agg.0, self.R, m);
+        let c = H_sig(&X_agg, &self.R, &m);
 
         // INTERVIEW PART 4: perform verification check
-        self.s * RISTRETTO_BASEPOINT_POINT == self.R + c * X_agg.0
+        self.s * RISTRETTO_BASEPOINT_POINT == self.R.0 + c * X_agg.0
         // false
     }
 }
 
-pub fn H_agg(L_hash: Scalar, X_i: RistrettoPoint) -> Scalar {
+pub fn H_agg(L_hash: &PubKeyHash, X_i: &PubKey) -> Scalar {
     let mut transcript = Transcript::new(b"H_agg");
-    transcript.commit_scalar(b"L", &L_hash);
-    transcript.commit_point(b"X_i", &X_i.compress());
+    transcript.commit_scalar(b"L", &L_hash.0);
+    transcript.commit_point(b"X_i", &X_i.0.compress());
     transcript.challenge_scalar(b"a_i")
 }
 
-pub fn H_sig(X_agg: RistrettoPoint, R: RistrettoPoint, m: Vec<u8>) -> Scalar {
+pub fn H_sig(X_agg: &PubKey, R: &NonceCommitment, m: &Vec<u8>) -> Scalar {
     let mut transcript = Transcript::new(b"H_sig");
-    transcript.commit_point(b"X_agg", &X_agg.compress());
-    transcript.commit_point(b"R", &R.compress());
+    transcript.commit_point(b"X_agg", &X_agg.0.compress());
+    transcript.commit_point(b"R", &R.0.compress());
     transcript.commit_bytes(b"m", &m);
     transcript.challenge_scalar(b"c")
 }
 
-pub fn H_nonce(R: RistrettoPoint) -> Scalar {
+pub fn H_nonce(R: &NonceCommitment) -> Scalar {
     let mut transcript = Transcript::new(b"nonce precommitment");
-    transcript.commit_point(b"R_i", &R.compress());
+    transcript.commit_point(b"R_i", &R.0.compress());
     transcript.challenge_scalar(b"nonce.precommit")
 }
 
@@ -175,7 +170,7 @@ mod tests {
         let cmp = &signatures[0];
         for sig in &signatures {
             assert_eq!(cmp.s, sig.s);
-            assert_eq!(cmp.R, sig.R)
+            assert_eq!(cmp.R.0, sig.R.0)
         }
 
         (signatures[0].clone())

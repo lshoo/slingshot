@@ -10,7 +10,7 @@ pub struct Nonce(Scalar);
 pub struct NoncePrecommitment(Scalar);
 // TODO: compress & decompress RistrettoPoint into CompressedRistretto when sending as message
 // TODO: rearrange crate/imports so fields don't have to be public
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NonceCommitment(pub RistrettoPoint);
 #[derive(Clone)]
 pub struct Siglet(pub Scalar);
@@ -34,6 +34,7 @@ pub struct PartyAwaitingCommitments {
 pub struct PartyAwaitingSiglets {
     X_agg: PubKey,
     L: PubKeyHash,
+    m: Vec<u8>,
     nonce_commitments: Vec<NonceCommitment>,
 }
 
@@ -46,7 +47,7 @@ impl<'a> PartyAwaitingPrecommitments {
         let R_i = NonceCommitment(RISTRETTO_BASEPOINT_POINT * r_i.0);
         // let R_i = NonceCommitment(RistrettoPoint::default());
 
-        let precommitment = NoncePrecommitment(H_nonce(R_i.0));
+        let precommitment = NoncePrecommitment(H_nonce(&R_i));
 
         (
             PartyAwaitingPrecommitments {
@@ -91,20 +92,21 @@ impl<'a> PartyAwaitingCommitments {
             .zip(nonce_commitments.iter())
         {
             // Make H(comm) = H(R_i)
-            let correct_precomm = H_nonce(comm.0);
+            let correct_precomm = H_nonce(&comm);
 
             // Compare H(comm) with pre_comm, they should be equal
             assert_eq!(pre_comm.0, correct_precomm);
         }
 
         // Make R = sum_i(R_i). nonce_commitments = R_i from all the parties.
-        let R: RistrettoPoint = nonce_commitments.iter().map(|R_i| R_i.0).sum();
+        let R = NonceCommitment(nonce_commitments.iter().map(|R_i| R_i.0).sum());
 
         // Make c = H(X_agg, R, m)
-        let c = H_sig(self.X_agg.0, R, m);
+        let c = H_sig(&self.X_agg, &R, &m);
 
         // Make a_i = H(L, X_i)
-        let a_i = H_agg(self.L.0, self.x_i.0 * RISTRETTO_BASEPOINT_POINT);
+        let X_i = PubKey(self.x_i.0 * RISTRETTO_BASEPOINT_POINT);
+        let a_i = H_agg(&self.L, &X_i);
 
         // INTERVIEW PART 3: Generate siglet correctly.
         // let s_i = Scalar::zero();
@@ -115,6 +117,7 @@ impl<'a> PartyAwaitingCommitments {
             PartyAwaitingSiglets {
                 X_agg: self.X_agg,
                 L: self.L,
+                m,
                 nonce_commitments,
             },
             Siglet(s_i),
@@ -127,7 +130,7 @@ impl<'a> PartyAwaitingSiglets {
         // s = sum(siglets)
         let s: Scalar = siglets.iter().map(|siglet| siglet.0).sum();
         // R = sum(R_i). nonce_commitments = R_i
-        let R: RistrettoPoint = self.nonce_commitments.iter().map(|R_i| R_i.0).sum();
+        let R = NonceCommitment(self.nonce_commitments.iter().map(|R_i| R_i.0).sum());
 
         Signature { s, R }
     }
@@ -138,6 +141,27 @@ impl<'a> PartyAwaitingSiglets {
         pubkeys: Vec<PubKey>,
     ) -> Signature {
         // INTERVIEW EXTRA PART: Check that all siglets are valid
+        // Check that all siglets are valid
+        for (i, s_i) in siglets.iter().enumerate() {
+            let S_i = s_i.0 * RISTRETTO_BASEPOINT_POINT;
+            let X_i = PubKey(pubkeys[i].0);
+            let R_i = self.nonce_commitments[i].0;
+            let R = NonceCommitment(self.nonce_commitments.iter().map(|R_i| R_i.0).sum());
+
+            // Make c = H(X_agg, R, m)
+            let c = H_sig(&self.X_agg, &R, &self.m);
+            //     let mut hash_transcript = self.shared.transcript.clone();
+            //     hash_transcript.commit_point(b"X_agg", &self.shared.X_agg.0.compress());
+            //     hash_transcript.commit_point(b"R", &R.compress());
+            //     hash_transcript.commit_bytes(b"m", &self.shared.m);
+            //     hash_transcript.challenge_scalar(b"c")
+            // };
+            // Make a_i = H(L, X_i)
+            let a_i = H_agg(&self.L, &X_i);
+
+            // Check that S_i = R_i + c * a_i * X_i
+            assert_eq!(S_i, R_i + c * a_i * X_i.0);
+        }
 
         self.receive_siglets(siglets)
     }
