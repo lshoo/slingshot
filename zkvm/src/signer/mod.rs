@@ -31,32 +31,29 @@ pub struct Signature {
 pub struct Shared {
     G: RistrettoPoint,
     transcript: Transcript,
-    // X_agg = sum_i ( a_i * X_i )
     X_agg: PubKey,
-    // L = H(X_1 || X_2 || ... || X_n)
     L: PubKeyHash,
-    // message being signed
     m: Vec<u8>,
 }
 
 impl MultiKey {
     pub fn aggregate(&self, transcript: &mut Transcript) -> (PubKey, PubKeyHash) {
-        // L = H(X_1 || X_2 || ... || X_n)
-        let mut L_transcript = transcript.clone();
-        for X_i in &self.0 {
-            L_transcript.commit_point(b"X_i.L", &X_i.0.compress());
-        }
-        let L = L_transcript.challenge_scalar(b"L");
+        let L = {
+            let mut L_transcript = transcript.clone();
+            for X_i in &self.0 {
+                L_transcript.commit_point(b"X_i.L", &X_i.0.compress());
+            }
+            L_transcript.challenge_scalar(b"L")    
+        };
 
-        // X = sum_i ( a_i * X_i )
-        // a_i = H(L, X_i)
         let mut X = RistrettoPoint::default();
         for X_i in &self.0 {
-            let mut a_i_transcript = transcript.clone();
-            a_i_transcript.commit_scalar(b"L", &L);
-            a_i_transcript.commit_point(b"X_i", &X_i.0.compress());
-            let a_i = a_i_transcript.challenge_scalar(b"a_i");
-            X = X + a_i * X_i.0;
+            let a_i = {
+                let mut a_i_transcript = transcript.clone();
+                a_i_transcript.commit_scalar(b"L", &L);
+                a_i_transcript.commit_point(b"X_i", &X_i.0.compress());
+                a_i_transcript.challenge_scalar(b"a_i")
+            };          
         }
 
         (PubKey(X), PubKeyHash(L))
