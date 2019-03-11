@@ -43,9 +43,11 @@ impl MultiKey {
             for X_i in &self.0 {
                 L_transcript.commit_point(b"X_i.L", &X_i.0.compress());
             }
-            L_transcript.challenge_scalar(b"L")    
+            L_transcript.challenge_scalar(b"L")
         };
 
+        // INTERVIEW PART 1: create Pubkey(X) correctly.
+        // Also, comment the code as you see fit for readability.
         let mut X = RistrettoPoint::default();
         for X_i in &self.0 {
             let a_i = {
@@ -53,7 +55,7 @@ impl MultiKey {
                 a_i_transcript.commit_scalar(b"L", &L);
                 a_i_transcript.commit_point(b"X_i", &X_i.0.compress());
                 a_i_transcript.challenge_scalar(b"a_i")
-            };          
+            };
         }
 
         (PubKey(X), PubKeyHash(L))
@@ -71,8 +73,8 @@ impl Signature {
             hash_transcript.challenge_scalar(b"c")
         };
 
-        // Check sG = R + c * X_agg
-        self.s * shared.G == self.R + c * shared.X_agg.0
+        // INTERVIEW PART 4: perform verification check
+        false
     }
 }
 

@@ -43,14 +43,14 @@ impl<'a> PartyAwaitingPrecommitments {
             .build_rng()
             .finalize(&mut rand::thread_rng());
 
-        // Generate ephemeral keypair (r_i, R_i). r_i is a random nonce.
         let r_i = Nonce(Scalar::random(&mut rng));
-        // R_i = generator * r_i
-        let R_i = NonceCommitment(shared.G * r_i.0);
 
-        // Make H(R_i)
+        // INTERVIEW PART 2: make R_i and H(R_i) correctly.
+        // Also, comment the code as you see fit for readability.
+        let R_i = NonceCommitment(RistrettoPoint::default());
+
         let mut hash_transcript = shared.transcript.clone();
-        hash_transcript.commit_point(b"R_i", &R_i.0.compress());
+        hash_transcript.commit_point(b"R_i", &RistrettoPoint::default().compress());
         let precommitment =
             NoncePrecommitment(hash_transcript.challenge_scalar(b"nonce.precommit"));
 
@@ -123,8 +123,8 @@ impl<'a> PartyAwaitingCommitments {
             hash_transcript.challenge_scalar(b"a_i")
         };
 
-        // Generate siglet: s_i = r_i + c * a_i * x_i
-        let s_i = self.r_i.0 + c * a_i * self.x_i.0;
+        // INTERVIEW PART 3: Generate siglet correctly.
+        let s_i = Scalar::zero();
 
         // Store received nonce commitments in next state
         (
@@ -152,32 +152,7 @@ impl<'a> PartyAwaitingSiglets {
         siglets: Vec<Siglet>,
         pubkeys: Vec<PubKey>,
     ) -> Signature {
-        // Check that all siglets are valid
-        for (i, s_i) in siglets.iter().enumerate() {
-            let S_i = s_i.0 * self.shared.G;
-            let X_i = pubkeys[i].0;
-            let R_i = self.nonce_commitments[i].0;
-            let R: RistrettoPoint = self.nonce_commitments.iter().map(|R_i| R_i.0).sum();
-
-            // Make c = H(X_agg, R, m)
-            let c = {
-                let mut hash_transcript = self.shared.transcript.clone();
-                hash_transcript.commit_point(b"X_agg", &self.shared.X_agg.0.compress());
-                hash_transcript.commit_point(b"R", &R.compress());
-                hash_transcript.commit_bytes(b"m", &self.shared.m);
-                hash_transcript.challenge_scalar(b"c")
-            };
-            // Make a_i = H(L, X_i)
-            let a_i = {
-                let mut hash_transcript = self.shared.transcript.clone();
-                hash_transcript.commit_scalar(b"L", &self.shared.L.0);
-                hash_transcript.commit_point(b"X_i", &X_i.compress());
-                hash_transcript.challenge_scalar(b"a_i")
-            };
-
-            // Check that S_i = R_i + c * a_i * X_i
-            assert_eq!(S_i, R_i + c * a_i * X_i);
-        }
+        // INTERVIEW EXTRA PART: Check that all siglets are valid
 
         self.receive_siglets(siglets)
     }
