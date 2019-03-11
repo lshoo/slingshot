@@ -18,7 +18,7 @@ pub struct PrivKey(Scalar);
 #[derive(Clone)]
 pub struct PubKey(RistrettoPoint);
 
-pub struct MultiKey(Vec<PubKey>); // TODO: also include Option<Scalar> for signing key?
+pub struct MultiKey(Vec<PubKey>);
 
 #[derive(Clone)]
 pub struct PubKeyHash(Scalar);

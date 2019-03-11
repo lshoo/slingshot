@@ -8,8 +8,6 @@ use rand;
 pub struct Nonce(Scalar);
 #[derive(Clone)]
 pub struct NoncePrecommitment(Scalar);
-// TODO: compress & decompress RistrettoPoint into CompressedRistretto when sending as message
-// TODO: rearrange crate/imports so fields don't have to be public
 #[derive(Clone, Debug)]
 pub struct NonceCommitment(pub RistrettoPoint);
 #[derive(Clone)]
@@ -150,12 +148,7 @@ impl<'a> PartyAwaitingSiglets {
 
             // Make c = H(X_agg, R, m)
             let c = H_sig(&self.X_agg, &R, &self.m);
-            //     let mut hash_transcript = self.shared.transcript.clone();
-            //     hash_transcript.commit_point(b"X_agg", &self.shared.X_agg.0.compress());
-            //     hash_transcript.commit_point(b"R", &R.compress());
-            //     hash_transcript.commit_bytes(b"m", &self.shared.m);
-            //     hash_transcript.challenge_scalar(b"c")
-            // };
+
             // Make a_i = H(L, X_i)
             let a_i = H_agg(&self.L, &X_i);
 
