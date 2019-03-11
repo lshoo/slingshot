@@ -1,6 +1,5 @@
-#![allow(non_snake_case)]
-
 use crate::signer::*;
+use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use rand;
@@ -17,38 +16,42 @@ pub struct NonceCommitment(pub RistrettoPoint);
 pub struct Siglet(pub Scalar);
 
 pub struct PartyAwaitingPrecommitments {
-    shared: Shared,
+    X_agg: PubKey,
+    L: PubKeyHash,
     x_i: PrivKey,
     r_i: Nonce,
     R_i: NonceCommitment,
 }
 
 pub struct PartyAwaitingCommitments {
-    shared: Shared,
+    X_agg: PubKey,
+    L: PubKeyHash,
     x_i: PrivKey,
     r_i: Nonce,
     nonce_precommitments: Vec<NoncePrecommitment>,
 }
 
 pub struct PartyAwaitingSiglets {
-    shared: Shared,
+    X_agg: PubKey,
+    L: PubKeyHash,
     nonce_commitments: Vec<NonceCommitment>,
 }
 
 impl<'a> PartyAwaitingPrecommitments {
-    pub fn new(x_i: PrivKey, shared: Shared) -> (Self, NoncePrecommitment) {
+    pub fn new(x_i: PrivKey, X_agg: PubKey, L: PubKeyHash) -> (Self, NoncePrecommitment) {
         let r_i = Nonce(Scalar::random(&mut rand::thread_rng()));
 
         // INTERVIEW PART 2: make R_i and H(R_i) correctly.
         // Also, comment the code as you see fit for readability.
-        let R_i = NonceCommitment(shared.G * r_i.0);
+        let R_i = NonceCommitment(RISTRETTO_BASEPOINT_POINT * r_i.0);
         // let R_i = NonceCommitment(RistrettoPoint::default());
 
         let precommitment = NoncePrecommitment(H_nonce(R_i.0));
 
         (
             PartyAwaitingPrecommitments {
-                shared,
+                X_agg,
+                L,
                 x_i,
                 r_i,
                 R_i,
@@ -64,7 +67,8 @@ impl<'a> PartyAwaitingPrecommitments {
         // Store received nonce precommitments in next state
         (
             PartyAwaitingCommitments {
-                shared: self.shared,
+                X_agg: self.X_agg,
+                L: self.L,
                 x_i: self.x_i,
                 r_i: self.r_i,
                 nonce_precommitments,
@@ -78,6 +82,7 @@ impl<'a> PartyAwaitingCommitments {
     pub fn receive_commitments(
         self,
         nonce_commitments: Vec<NonceCommitment>,
+        m: Vec<u8>,
     ) -> (PartyAwaitingSiglets, Siglet) {
         // Check stored precommitments against received commitments
         for (pre_comm, comm) in self
@@ -96,10 +101,10 @@ impl<'a> PartyAwaitingCommitments {
         let R: RistrettoPoint = nonce_commitments.iter().map(|R_i| R_i.0).sum();
 
         // Make c = H(X_agg, R, m)
-        let c = H_sig(self.shared.X_agg.0, R, self.shared.m.clone());
+        let c = H_sig(self.X_agg.0, R, m);
 
         // Make a_i = H(L, X_i)
-        let a_i = H_agg(self.shared.L.0, self.x_i.0 * self.shared.G);
+        let a_i = H_agg(self.L.0, self.x_i.0 * RISTRETTO_BASEPOINT_POINT);
 
         // INTERVIEW PART 3: Generate siglet correctly.
         // let s_i = Scalar::zero();
@@ -108,7 +113,8 @@ impl<'a> PartyAwaitingCommitments {
         // Store received nonce commitments in next state
         (
             PartyAwaitingSiglets {
-                shared: self.shared,
+                X_agg: self.X_agg,
+                L: self.L,
                 nonce_commitments,
             },
             Siglet(s_i),

@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
 use crate::transcript::TranscriptProtocol;
+use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use merlin::Transcript;
@@ -29,11 +30,8 @@ pub struct Signature {
 
 #[derive(Clone)]
 pub struct Shared {
-    G: RistrettoPoint,
-    transcript: Transcript,
     X_agg: PubKey,
     L: PubKeyHash,
-    m: Vec<u8>,
 }
 
 impl MultiKey {
@@ -60,12 +58,12 @@ impl MultiKey {
 }
 
 impl Signature {
-    pub fn verify(&self, shared: Shared) -> bool {
+    pub fn verify(&self, m: Vec<u8>, X_agg: PubKey) -> bool {
         // Make c = H(X_agg, R, m)
-        let c = H_sig(shared.X_agg.0, self.R, shared.m);
+        let c = H_sig(X_agg.0, self.R, m);
 
         // INTERVIEW PART 4: perform verification check
-        self.s * shared.G == self.R + c * shared.X_agg.0
+        self.s * RISTRETTO_BASEPOINT_POINT == self.R + c * X_agg.0
         // false
     }
 }
@@ -110,12 +108,12 @@ mod tests {
         let (pub_key, pub_key_hash) = agg_pubkey_helper(&priv_keys);
 
         let expected_pub_key = CompressedRistretto::from_slice(&[
-            230, 10, 31, 242, 52, 253, 170, 11, 188, 32, 16, 75, 197, 68, 202, 134, 44, 2, 170, 6,
-            233, 235, 108, 137, 125, 139, 72, 188, 48, 243, 41, 47,
+            196, 129, 92, 103, 69, 90, 78, 220, 115, 228, 144, 155, 49, 101, 113, 9, 31, 25, 176,
+            250, 249, 62, 207, 216, 120, 149, 199, 26, 101, 118, 69, 3,
         ]);
         let expected_pub_key_hash = Scalar::from_bits([
-            60, 100, 150, 203, 200, 157, 0, 177, 105, 36, 13, 89, 221, 235, 157, 208, 57, 177, 210,
-            199, 101, 182, 128, 5, 125, 101, 109, 94, 125, 160, 223, 2,
+            229, 114, 44, 119, 192, 112, 253, 230, 246, 19, 57, 241, 95, 48, 219, 162, 72, 240,
+            243, 154, 205, 94, 152, 30, 58, 129, 49, 209, 141, 80, 74, 0,
         ]);
 
         assert_eq!(expected_pub_key, pub_key.0.compress());
@@ -144,22 +142,14 @@ mod tests {
         ];
         let (X_agg, L) = agg_pubkey_helper(&priv_keys);
 
-        let shared = Shared {
-            G: RISTRETTO_BASEPOINT_POINT,
-            transcript: Transcript::new(b"sign msg test"),
-            X_agg,
-            L,
-            m: b"message to sign".to_vec(),
-        };
-
-        sign_helper(priv_keys, shared);
+        sign_helper(priv_keys, X_agg, L);
     }
 
-    fn sign_helper(priv_keys: Vec<PrivKey>, shared: Shared) -> Signature {
+    fn sign_helper(priv_keys: Vec<PrivKey>, X_agg: PubKey, L: PubKeyHash) -> Signature {
         let (parties, precomms): (Vec<_>, Vec<_>) = priv_keys
             .clone()
             .into_iter()
-            .map(|x_i| PartyAwaitingPrecommitments::new(x_i, shared.clone()))
+            .map(|x_i| PartyAwaitingPrecommitments::new(x_i, X_agg.clone(), L.clone()))
             .unzip();
 
         let (parties, comms): (Vec<_>, Vec<_>) = parties
@@ -169,12 +159,12 @@ mod tests {
 
         let (parties, siglets): (Vec<_>, Vec<_>) = parties
             .into_iter()
-            .map(|p| p.receive_commitments(comms.clone()))
+            .map(|p| p.receive_commitments(comms.clone(), b"message to sign".to_vec()))
             .unzip();
 
         let pub_keys: Vec<_> = priv_keys
             .iter()
-            .map(|priv_key| PubKey(priv_key.0 * shared.G))
+            .map(|priv_key| PubKey(priv_key.0 * RISTRETTO_BASEPOINT_POINT))
             .collect();
         let signatures: Vec<_> = parties
             .into_iter()
@@ -202,15 +192,7 @@ mod tests {
         ];
         let (X_agg, L) = agg_pubkey_helper(&priv_keys);
 
-        let shared = Shared {
-            G: RISTRETTO_BASEPOINT_POINT,
-            transcript: Transcript::new(b"sign msg test"),
-            X_agg,
-            L,
-            m: b"message to sign".to_vec(),
-        };
-
-        let signature = sign_helper(priv_keys, shared.clone());
-        assert_eq!(true, signature.verify(shared.clone()));
+        let signature = sign_helper(priv_keys, X_agg.clone(), L);
+        assert_eq!(true, signature.verify(b"message to sign".to_vec(), X_agg));
     }
 }
