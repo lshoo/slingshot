@@ -13,7 +13,7 @@ pub struct Signature {
 }
 
 impl Signature {
-    pub fn verify(&self, transcript: &Transcript, P: VerificationKey) -> Result<(), VMError> {
+    pub fn verify(&self, transcript: &MsgTranscript, P: VerificationKey) -> Result<(), VMError> {
         let G = RISTRETTO_BASEPOINT_POINT;
         let mut transcript = transcript.clone();
 
@@ -92,10 +92,9 @@ mod tests {
     fn sign_helper(
         priv_keys: Vec<Scalar>,
         multikey: Multikey,
-        m: Vec<u8>,
+        m: Vec<u8>,             // why not &Vec<u8>?
     ) -> Result<Signature, VMError> {
-        let mut transcript = Transcript::new(b"signing test");
-        transcript.commit_bytes(b"message", &m);
+        let mut transcript = MsgTranscript::new(&m);
 
         let (parties, precomms): (Vec<_>, Vec<_>) = priv_keys
             .clone()
@@ -148,8 +147,7 @@ mod tests {
 
         let signature = sign_helper(priv_keys, multikey.clone(), m.clone()).unwrap();
 
-        let mut transcript = Transcript::new(b"signing test");
-        transcript.commit_bytes(b"message", &m);
+        let mut transcript = MsgTranscript::new(b"message for you, sir");
 
         assert!(signature
             .verify(&mut transcript, multikey.aggregated_key())

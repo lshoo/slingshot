@@ -21,7 +21,7 @@ pub struct NonceCommitment(RistrettoPoint);
 pub struct Party {}
 
 pub struct PartyAwaitingPrecommitments {
-    transcript: Transcript,
+    transcript: MsgTranscript,
     multikey: Multikey,
     x_i: Scalar,
     r_i: Scalar,
@@ -29,7 +29,7 @@ pub struct PartyAwaitingPrecommitments {
 }
 
 pub struct PartyAwaitingCommitments {
-    transcript: Transcript,
+    transcript: MsgTranscript,
     multikey: Multikey,
     x_i: Scalar,
     r_i: Scalar,
@@ -55,8 +55,7 @@ impl NonceCommitment {
 
 impl Party {
     pub fn new(
-        // The message `m` should already have been fed into the transcript
-        transcript: &Transcript,
+        transcript: &MsgTranscript,
         x_i: Scalar,
         multikey: Multikey,
     ) -> (PartyAwaitingPrecommitments, NoncePrecommitment) {

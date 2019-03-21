@@ -30,14 +30,14 @@ pub struct Signature {
 // TODO: copy _aggregated funcs over to _single, get rid of vectors.
 impl Signature {
     /// Verifies a signature for a single key
-    pub fn verify_single(&self, transcript: &mut Transcript, pubkey: VerificationKey) -> PointOp {
+    pub fn verify_single(&self, transcript: &mut MsgTranscript, pubkey: VerificationKey) -> PointOp {
         self.verify_aggregated(transcript, &[pubkey])
     }
 
     /// Verifies an aggregated signature for a collection of public keys.
     pub fn verify_aggregated(
         &self,
-        transcript: &mut Transcript,
+        transcript: &mut MsgTranscript,
         pubkeys: &[VerificationKey],
     ) -> PointOp {
         transcript.commit_u64(b"n", pubkeys.len() as u64);
@@ -78,12 +78,12 @@ impl Signature {
     }
 
     /// Creates a signature for a single private key
-    pub fn sign_single(transcript: &mut Transcript, privkey: Scalar) -> Self {
+    pub fn sign_single(transcript: &mut MsgTranscript, privkey: Scalar) -> Self {
         Signature::sign_aggregated(transcript, &[privkey])
     }
 
     /// Creates an aggregated signature for a set of private keys
-    pub fn sign_aggregated(transcript: &mut Transcript, privkeys: &[Scalar]) -> Self {
+    pub fn sign_aggregated(transcript: &mut MsgTranscript, privkeys: &[Scalar]) -> Self {
         // Derive public keys from privkeys
         let gens = PedersenGens::default();
         let pubkeys = privkeys
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn empty() {
-        let mut transcript = Transcript::new(b"empty");
+        let mut transcript = MsgTranscript::new(b"message for you, sir");
         let sig = Signature::sign_aggregated(&mut transcript, &[]);
         assert!(sig.verify_aggregated(&mut transcript, &[]).verify().is_ok());
     }
@@ -184,12 +184,12 @@ mod tests {
         let (pubkey, sig) = {
             let privkey = Scalar::random(&mut rand::thread_rng());
             let pubkey = VerificationKey::from_secret(&privkey);
-            let mut transcript = Transcript::new(b"single_signature");
+            let mut transcript = MsgTranscript::new(b"message for you, sir");
             let sig = Signature::sign_single(&mut transcript, privkey);
             (pubkey, sig)
         };
 
-        let mut transcript = Transcript::new(b"single_signature");
+        let mut transcript = MsgTranscript::new(b"single_signature");
         assert!(sig.verify_single(&mut transcript, pubkey).verify().is_ok());
     }
 
@@ -197,12 +197,12 @@ mod tests {
     fn single_signature_wrong_key() {
         let sig = {
             let privkey = Scalar::random(&mut rand::thread_rng());
-            let mut transcript = Transcript::new(b"single_signature");
+            let mut transcript = MsgTranscript::new(b"message for you, sir");
             let sig = Signature::sign_single(&mut transcript, privkey);
-            sig
+            sig                 // xxx why have this here? why not end the function at the call to Signature::sign_single?
         };
 
-        let mut transcript = Transcript::new(b"single_signature");
+        let mut transcript = MsgTranscript::new(b"message for you, sir");
         let wrong_pubkey = VerificationKey::from_secret(&Scalar::random(&mut rand::thread_rng()));
         assert!(sig
             .verify_single(&mut transcript, wrong_pubkey)
@@ -217,12 +217,12 @@ mod tests {
             let pubkey1 = VerificationKey::from_secret(&privkey1);
             let privkey2 = Scalar::random(&mut rand::thread_rng());
             let pubkey2 = VerificationKey::from_secret(&privkey2);
-            let mut transcript = Transcript::new(b"two_key_signature");
+            let mut transcript = MsgTranscript::new(b"message for you, sir");
             let sig = Signature::sign_aggregated(&mut transcript, &[privkey1, privkey2]);
             (pubkey1, pubkey2, sig)
         };
 
-        let mut transcript = Transcript::new(b"two_key_signature");
+        let mut transcript = MsgTranscript::new(b"message for you, sir");
         assert!(sig
             .verify_aggregated(&mut transcript, &[pubkey1, pubkey2])
             .verify()
@@ -236,12 +236,12 @@ mod tests {
             let pubkey1 = VerificationKey::from_secret(&privkey1);
             let privkey2 = Scalar::random(&mut rand::thread_rng());
             let pubkey2 = VerificationKey::from_secret(&privkey2);
-            let mut transcript = Transcript::new(b"two_key_signature");
+            let mut transcript = MsgTranscript::new(b"message for you, sir");
             let sig = Signature::sign_aggregated(&mut transcript, &[privkey1, privkey2]);
             (pubkey1, pubkey2, sig)
         };
 
-        let mut transcript = Transcript::new(b"two_key_signature");
+        let mut transcript = MsgTranscript::new(b"message for you, sir");
         assert!(sig
             .verify_aggregated(&mut transcript, &[pubkey2, pubkey1])
             .verify()
